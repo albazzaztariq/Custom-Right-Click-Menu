@@ -56,13 +56,20 @@ echo.
 echo === Building menu.dll (consumer, imports API from shell_extension) ===
 cl %COMMON% /LD /Fe:build\menu.dll /Fo:build\obj\ ^
    examples\menu.cpp ^
-   build\shell_extension.lib user32.lib shell32.lib ole32.lib oleaut32.lib oleacc.lib
+   build\shell_extension.lib user32.lib shell32.lib ole32.lib oleaut32.lib oleacc.lib advapi32.lib
 if errorlevel 1 goto fail
 
 echo.
 echo === Building hook_test.exe ===
 cl %COMMON% /Fe:build\hook_test.exe /Fo:build\obj\ ^
    hook_test\hook_test.cpp ^
+   user32.lib
+if errorlevel 1 goto fail
+
+echo.
+echo === Building obs_watcher.exe (Obsidian window cleanup helper) ===
+cl %COMMON% /Fe:build\obs_watcher.exe /Fo:build\obj\ ^
+   obs_watcher\obs_watcher.cpp ^
    user32.lib
 if errorlevel 1 goto fail
 

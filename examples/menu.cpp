@@ -668,8 +668,12 @@ static void CreateDesktopShortcut(const std::string& target) {
 // Run an arbitrary PowerShell command string via -EncodedCommand
 // (Base64 UTF-16LE). Bypasses CMD's metacharacter parsing so paths
 // with spaces, ampersands, single quotes etc. don't break the
-// invocation. Waits up to 30 s for completion.
-static void RunPowerShellEncoded(const std::wstring& ps1) {
+// invocation. If detached=false (default), waits up to 30 s for
+// completion. If detached=true, returns immediately and the PS
+// process lives independently — used for background watchers like
+// the Obsidian temp-vault cleanup.
+static void RunPowerShellEncoded(const std::wstring& ps1,
+                                 bool detached = false) {
     auto base64 = [](const BYTE* data, size_t n) {
         static const char* tab =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -698,10 +702,11 @@ static void RunPowerShellEncoded(const std::wstring& ps1) {
     si.dwFlags     = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
     PROCESS_INFORMATION pi = {};
+    DWORD flags = CREATE_NO_WINDOW;
+    if (detached) flags |= DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB;
     if (!::CreateProcessA(nullptr, (LPSTR)cmd.c_str(), nullptr, nullptr,
-                          FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
-                          &si, &pi)) return;
-    ::WaitForSingleObject(pi.hProcess, 30000);
+                          FALSE, flags, nullptr, nullptr, &si, &pi)) return;
+    if (!detached) ::WaitForSingleObject(pi.hProcess, 30000);
     ::CloseHandle(pi.hProcess);
     ::CloseHandle(pi.hThread);
 }
@@ -741,6 +746,168 @@ static void CompressMultipleToZip(const std::vector<std::string>& items) {
     }
     ps1 += L") -DestinationPath '" + full + L"' -Force";
     RunPowerShellEncoded(ps1);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// .md / Obsidian flow
+//
+// We don't want to be locked into Obsidian's "Vault" model just to
+// VIEW an .md file. So:
+//   1. Copy the .md to C:\Users\azt12\Temp Obsidian Vault (creating
+//      it as a minimal vault on first use by writing a .obsidian
+//      marker folder so Obsidian recognizes it).
+//   2. Open via the obsidian://open?vault=...&file=... URL scheme
+//      so Obsidian opens THAT specific vault — opens a new window
+//      if Obsidian is already running for the user's main vault.
+//   3. Spawn a detached PowerShell that polls every 2 s for the
+//      Obsidian process to exit, then deletes the temp copy.
+//   4. Register a RunOnce HKCU entry as a fallback cleanup — if the
+//      watcher dies on shutdown/crash, the file gets cleaned up on
+//      next logon.
+// ─────────────────────────────────────────────────────────────────────
+
+static const char* kTempVaultPath = "C:\\Users\\azt12\\Temp Obsidian Vault";
+static const char* kMainVaultPath = "C:\\Users\\azt12\\OneDrive\\Documents\\Obsidian Vault";
+
+static std::string LeafOf(const std::string& full) {
+    size_t s = full.find_last_of("\\/");
+    return (s == std::string::npos) ? full : full.substr(s + 1);
+}
+
+static void EnsureDirectory(const std::wstring& path) {
+    ::CreateDirectoryW(path.c_str(), nullptr);
+}
+
+// Percent-encode a UTF-8 string for the obsidian:// URL.
+static std::string UrlEncode(const std::string& s) {
+    auto is_unreserved = [](unsigned char c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+               (c >= '0' && c <= '9') ||
+               c == '-' || c == '_' || c == '.' || c == '~';
+    };
+    std::string out;
+    for (unsigned char c : s) {
+        if (is_unreserved(c)) out += (char)c;
+        else {
+            char buf[5];
+            snprintf(buf, sizeof(buf), "%%%02X", c);
+            out += buf;
+        }
+    }
+    return out;
+}
+
+// Register a RunOnce key under HKCU that deletes `dst_path` next logon.
+// Belt-and-suspenders cleanup in case the watcher process dies before
+// it can do its job (system shutdown, kill, etc.).
+static void RegisterRunOnceDelete(const std::wstring& dst_path) {
+    HKEY hKey = nullptr;
+    LONG lr = ::RegOpenKeyExW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
+        0, KEY_SET_VALUE, &hKey);
+    if (lr != ERROR_SUCCESS || !hKey) return;
+    std::wstring name = L"RCMObsidianTempCleanup_" +
+                        std::to_wstring(::GetTickCount());
+    std::wstring cmd  = L"cmd /c del /F /Q \"" + dst_path + L"\"";
+    ::RegSetValueExW(hKey, name.c_str(), 0, REG_SZ,
+                     (const BYTE*)cmd.c_str(),
+                     (DWORD)((cmd.size() + 1) * sizeof(wchar_t)));
+    ::RegCloseKey(hKey);
+}
+
+static void OpenInObsidianFlow(const std::string& src_path) {
+    if (src_path.empty()) return;
+
+    // 1. Ensure Temp Obsidian Vault exists as a recognizable vault.
+    std::wstring wvault = widen(kTempVaultPath);
+    EnsureDirectory(wvault);
+    EnsureDirectory(wvault + L"\\.obsidian");
+
+    // 2. Copy the source .md into the temp vault.
+    std::string leaf = LeafOf(src_path);
+    std::string dst  = std::string(kTempVaultPath) + "\\" + leaf;
+    std::wstring wsrc = widen(src_path);
+    std::wstring wdst = widen(dst);
+    ::CopyFileW(wsrc.c_str(), wdst.c_str(), FALSE);  // overwrite OK
+
+    // 3. Open via obsidian:// URL scheme so the right vault opens.
+    //    Obsidian opens a new window for this vault even if its process
+    //    is already running for the user's main vault — both windows
+    //    share one process but each has its own HWND + title.
+    std::string url = "obsidian://open?vault=" +
+                      UrlEncode("Temp Obsidian Vault") +
+                      "&file=" + UrlEncode(leaf);
+    ::ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr,
+                    SW_SHOWNORMAL);
+
+    // 4. Spawn detached obs_watcher.exe — a small native helper that
+    //    uses SetWinEventHook to listen for the SPECIFIC Obsidian
+    //    window's destroy event. No polling, no busy waiting; the OS
+    //    only calls our hook when window events actually fire.
+    //    Args: <file-to-delete> <leaf-no-ext> "Temp Obsidian Vault"
+    //    Watcher identifies our window by Obsidian's title format
+    //    `<filename> - <vault name> - Obsidian`.
+    std::string leaf_no_ext = leaf;
+    if (leaf_no_ext.size() > 3 &&
+        _stricmp(leaf_no_ext.c_str() + leaf_no_ext.size() - 3, ".md")
+            == 0) {
+        leaf_no_ext.resize(leaf_no_ext.size() - 3);
+    }
+    std::wstring wleaf_no_ext = widen(leaf_no_ext);
+
+    // Locate obs_watcher.exe next to this menu.dll (build copies both
+    // into WORKING\build\). If menu.dll moves, the watcher moves with
+    // it, so derive the path from the current module's location.
+    wchar_t module_path[MAX_PATH] = {};
+    HMODULE hmod = nullptr;
+    ::GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        (LPCWSTR)&OpenInObsidianFlow, &hmod);
+    ::GetModuleFileNameW(hmod, module_path, MAX_PATH);
+    std::wstring watcher = module_path;
+    size_t bs = watcher.find_last_of(L"\\/");
+    if (bs != std::wstring::npos) watcher.resize(bs);
+    watcher += L"\\obs_watcher.exe";
+
+    // Build the command line. Quote each arg in case of spaces.
+    std::wstring cmdline =
+        L"\"" + watcher + L"\" "
+        L"\"" + wdst + L"\" "
+        L"\"" + wleaf_no_ext + L"\" "
+        L"\"Temp Obsidian Vault\"";
+
+    STARTUPINFOW si = { sizeof(si) };
+    PROCESS_INFORMATION pi = {};
+    if (::CreateProcessW(nullptr, cmdline.data(), nullptr, nullptr,
+                         FALSE,
+                         CREATE_NO_WINDOW | DETACHED_PROCESS |
+                         CREATE_BREAKAWAY_FROM_JOB,
+                         nullptr, nullptr, &si, &pi)) {
+        ::CloseHandle(pi.hProcess);
+        ::CloseHandle(pi.hThread);
+    }
+
+    // 5. Fallback cleanup on next logon if watcher dies before
+    //    the window closes (shutdown, crash, etc.).
+    RegisterRunOnceDelete(wdst);
+}
+
+// Move (not copy) the .md file to the user's main Obsidian vault.
+// Destination keeps the original filename; if a file by that name
+// exists at the destination, it gets overwritten (MOVEFILE_REPLACE_EXISTING).
+static void MoveToMainVault(const std::string& src_path) {
+    if (src_path.empty()) return;
+    std::wstring wmain = widen(kMainVaultPath);
+    EnsureDirectory(wmain);
+
+    std::string leaf  = LeafOf(src_path);
+    std::wstring wsrc = widen(src_path);
+    std::wstring wdst = wmain + L"\\" + widen(leaf);
+    ::MoveFileExW(wsrc.c_str(), wdst.c_str(),
+                  MOVEFILE_REPLACE_EXISTING);
 }
 
 
@@ -836,6 +1003,14 @@ void RegisterMenu() {
         //       return;
         //   }
         // ─────────────────────────────────────────────────────────────
+
+        if (extension == ".md") {
+            Selection("Open in Obsidian",  "", "open.png")    { OpenInObsidianFlow(path); };
+            Selection("Move to Main Vault","", "default.png") { MoveToMainVault(path);    };
+            Separator();
+            CommonFileOps();
+            return;
+        }
 
         // === DEFAULT FILE MENU (fallback for any file extension) ===
         Selection("Open", "", "open.png")                                      { InvokeVerb("open", path);      };
