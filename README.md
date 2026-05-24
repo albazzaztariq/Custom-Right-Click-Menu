@@ -65,17 +65,18 @@ Build order matters because `menu.dll` links against `build\shell_extension.lib`
 
 ## Install
 
-Three stages, each independently verifiable so a bug in late-stage code can't crash File Explorer.
+From an x64 Native Tools Command Prompt (admin):
 
 ```cmd
-build\test_harness.exe        Stage 1: API + window paint, no hook
-build\hook_test.exe           Stage 2: hook pipeline, no explorer
-register.bat                  Stage 3: live in explorer.exe  (admin)
+register.bat
+taskkill /F /IM explorer.exe && start explorer.exe
 ```
 
-After `register.bat`, restart Explorer (Task Manager → End task → Run new task → `explorer.exe`). Right-click anywhere in File Explorer.
+Two steps. `register.bat` runs `regsvr32` on `build\shell_extension.dll` to add the CLSID + ContextMenuHandlers registry entries. The Explorer restart is **mandatory** — Explorer only loads the DLL when a new instance launches, so registration alone doesn't surface the menu until next login. Killing + restarting Explorer makes it appear immediately.
 
-To remove: `unregister.bat` (admin) → restart Explorer.
+Right-click anywhere in File Explorer afterward.
+
+To remove: `unregister.bat` (admin), then restart Explorer.
 
 ## Customize the menu
 
