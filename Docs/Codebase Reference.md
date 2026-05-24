@@ -56,10 +56,10 @@ WORKING/
 | Path | Purpose |
 |---|---|
 | `build/shell_extension.log` | Host diag log (mutex + timestamps) |
-| `C:/Users/azt12/rcm_newtab_debug.log` | `examples/menu.cpp::nt_log` — Open in New Tab diag |
-| `C:/Users/azt12/obs_watcher_debug.log` | `obs_watcher.exe` |
-| `C:/Users/azt12/Temp Obsidian Vault/` | `.md` flow temp copies + `.obsidian` marker |
-| `C:/Users/azt12/OneDrive/Documents/Obsidian Vault/` | `MoveToMainVault` destination |
+| `%TEMP%/rcm_newtab_debug.log` | `examples/menu.cpp::nt_log` — Open in New Tab diag |
+| `%TEMP%/obs_watcher_debug.log` | `obs_watcher.exe` |
+| `<kTempVaultPath>` (configure per source) | `.md` flow temp copies + `.obsidian` marker |
+| `<kMainVaultPath>` (configure per source) | `MoveToMainVault` destination |
 | `HKCR\CLSID\{7C3F4C5E-9D2E-4F7A-B5C8-1A3D4E5F6A7B}` | Host CLSID — `DllRegisterServer` |
 | `HKCR\<asset>\shellex\ContextMenuHandlers\RightClickMenuAPI` | Per-asset registration (`*`, `AllFilesystemObjects`, `Directory`, `Directory\Background`, `Drive`, `Folder`) |
 | `HKCR\.md → ObsidianMD` + `HKCR\ObsidianMD\shell\open\command` | `.md` double-click handler pointing at `build/open_md_in_obsidian.bat` |
@@ -304,7 +304,7 @@ Replace `<full path>` with the absolute path to the project.
 ### Outstanding work
 
 - [ ] **Double-click `.md` opens vault but shows blank "New tab".** `build/open_md_in_obsidian.bat` launches the same `obsidian://open?vault=...&file=...` URL that the right-click flow uses successfully via `ShellExecuteA` from inside `explorer.exe`. From the batch path, vault opens but Obsidian's file lookup misses. URL-encoding both vault and leaf via `[uri]::EscapeDataString` did not fix it. Suspected: vault-index race (file on disk before Obsidian indexes the vault) OR process-context difference between in-explorer `ShellExecute` and PowerShell-child-process `Start-Process`. Not root-caused. — source: `build/open_md_in_obsidian.bat`
-- [ ] **Obsidian cleanup not always firing.** `examples/menu.cpp::OpenInObsidianFlow` — `obs_watcher.exe` sometimes exits without deleting the temp file. Diag log at `C:\Users\azt12\obs_watcher_debug.log` is instrumented. Need to capture: did `EVENT_OBJECT_SHOW` ever match the window? Did `EVENT_OBJECT_DESTROY` ever fire for `g_target`? — source: `obs_watcher/obs_watcher.cpp:62-72`
+- [ ] **Obsidian cleanup not always firing.** `examples/menu.cpp::OpenInObsidianFlow` — `obs_watcher.exe` sometimes exits without deleting the temp file. Diag log at `%TEMP%\obs_watcher_debug.log` is instrumented. Need to capture: did `EVENT_OBJECT_SHOW` ever match the window? Did `EVENT_OBJECT_DESTROY` ever fire for `g_target`? — source: `obs_watcher/obs_watcher.cpp:62-72`
 - [ ] **Per-tab Open in Terminal — needs multi-tab live test.** `find_shell_browser_for` was changed to walk to the active `ShellTabWindowClass` and match `IShellBrowser` by `IShellView` HWND descendancy. Confirmed working in code path but not yet verified with multi-tab Explorer. — source: `src/shell_context.cpp`
 - [ ] **SVGIO_SELECTION intermittent zero.** Win11 24H2 `IFolderView::Items(SVGIO_SELECTION)` returns 0 even when an item is selected, causing folder/file right-clicks to occasionally show the DirectoryBackground menu. `IShellView::GetItemObject` fallback was tried and reverted (it returned the persistent selection on whitespace clicks too). Real fix needs hit-testing the click coordinate against item rects via `IFolderView::GetItemPosition`. — source: `src/shell_context.cpp`
 - [ ] **Modern-menu CLSIDs unknown.** `src/detours_hook.cpp:34-39` `kRefusedClsids[]` has only a placeholder. Set `kLogEveryCci = true` and capture a right-click to discover the Win11 24H2 CLSIDs. — source: `src/detours_hook.cpp:34-39`

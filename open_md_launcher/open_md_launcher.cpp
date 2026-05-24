@@ -22,14 +22,20 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 
-static const wchar_t* kVaultPath = L"C:\\Users\\azt12\\Temp Obsidian Vault";
+// CONFIGURE: path to your scratch "temp" Obsidian vault. The vault
+// directory will be created on first use (with a .obsidian marker
+// folder) so Obsidian opens it as a vault.
+static const wchar_t* kVaultPath = L"C:\\YOUR\\TEMP\\OBSIDIAN\\VAULT";
 static const wchar_t* kVaultName = L"Temp Obsidian Vault";
-static const wchar_t* kLogPath   =
-    L"C:\\Users\\azt12\\open_md_launcher_debug.log";
 
 static void Log(const wchar_t* fmt, ...) {
     FILE* f = nullptr;
-    if (_wfopen_s(&f, kLogPath, L"ab") != 0 || !f) return;
+    wchar_t log_path[MAX_PATH];
+    const wchar_t* tmp = _wgetenv(L"TEMP");
+    if (!tmp) tmp = L".";
+    _snwprintf_s(log_path, MAX_PATH, _TRUNCATE,
+                 L"%s\\open_md_launcher_debug.log", tmp);
+    if (_wfopen_s(&f, log_path, L"ab") != 0 || !f) return;
     SYSTEMTIME st; ::GetLocalTime(&st);
     fwprintf(f, L"[%02d:%02d:%02d.%03d] ", st.wHour, st.wMinute,
              st.wSecond, st.wMilliseconds);

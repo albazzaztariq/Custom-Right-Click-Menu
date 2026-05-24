@@ -33,10 +33,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $bs = [char]92
 
-$Vault       = 'C:' + $bs + 'Users' + $bs + 'azt12' + $bs + 'Temp Obsidian Vault'
-$LauncherLog = 'C:' + $bs + 'Users' + $bs + 'azt12' + $bs + 'open_md_launcher_debug.log'
-$WatcherLog  = 'C:' + $bs + 'Users' + $bs + 'azt12' + $bs + 'obs_watcher_debug.log'
-$TempRoot    = 'C:' + $bs + 'Users' + $bs + 'azt12' + $bs + 'OneDrive' + $bs + 'Documents' + $bs + 'Computing' + $bs + 'Temp'
+# CONFIGURE: $Vault must match kVaultPath in open_md_launcher.cpp.
+$Vault       = 'C:' + $bs + 'YOUR' + $bs + 'TEMP' + $bs + 'OBSIDIAN' + $bs + 'VAULT'
+$LauncherLog = Join-Path -Path $env:TEMP -ChildPath 'open_md_launcher_debug.log'
+$WatcherLog  = Join-Path -Path $env:TEMP -ChildPath 'obs_watcher_debug.log'
+$TempRoot    = $env:TEMP
 $WatchNames  = @('Obsidian','open_md_launcher','obs_watcher','cmd','conhost')
 
 function Section($title) {

@@ -21,9 +21,12 @@ except ImportError as e:
     print(f"[DEBUG] missing dep: {e} -- pip install pillow numpy", flush=True)
     sys.exit(1)
 
-SRC = r"C:\Users\azt12\Downloads\ChatGPT Image May 20, 2026, 11_55_20 PM.png"
-OUT = (r"C:\Users\azt12\OneDrive\Documents\Computing\All Projects"
-       r"\Windows OS Work\Right-Click Menu API\WORKING\assets\icons")
+# CONFIGURE: SRC = path to the source mockup PNG containing the icon
+# grid. OUT = repo's assets/icons directory (relative to this script).
+import os
+SRC = r"PATH\TO\YOUR\MOCKUP.png"
+OUT = os.path.normpath(os.path.join(os.path.dirname(__file__),
+                                    "..", "assets", "icons"))
 
 # Grid layout of the mockup we're extracting from. NAMES is laid out
 # left-to-right, top-to-bottom. ROWS * COLS == len(NAMES).

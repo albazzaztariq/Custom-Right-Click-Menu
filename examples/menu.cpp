@@ -264,8 +264,12 @@ static void NavigateHere(const std::string& p) {
 // produced on the live 24H2 build 26200.
 static void nt_log(const char* fmt, ...) {
     FILE* f = nullptr;
-    if (fopen_s(&f, "C:\\Users\\azt12\\rcm_newtab_debug.log", "ab") != 0
-        || !f) return;
+    char log_path[MAX_PATH];
+    const char* tmp = getenv("TEMP");
+    if (!tmp) tmp = ".";
+    _snprintf_s(log_path, sizeof(log_path), _TRUNCATE,
+                "%s\\rcm_newtab_debug.log", tmp);
+    if (fopen_s(&f, log_path, "ab") != 0 || !f) return;
     SYSTEMTIME st; ::GetLocalTime(&st);
     fprintf(f, "[%02d:%02d:%02d.%03d] ", st.wHour, st.wMinute,
             st.wSecond, st.wMilliseconds);
@@ -754,9 +758,9 @@ static void CompressMultipleToZip(const std::vector<std::string>& items) {
 //
 // We don't want to be locked into Obsidian's "Vault" model just to
 // VIEW an .md file. So:
-//   1. Copy the .md to C:\Users\azt12\Temp Obsidian Vault (creating
-//      it as a minimal vault on first use by writing a .obsidian
-//      marker folder so Obsidian recognizes it).
+//   1. Copy the .md to a temp vault directory (created as a minimal
+//      vault on first use by writing a .obsidian marker folder so
+//      Obsidian recognizes it).
 //   2. Open via the obsidian://open?vault=...&file=... URL scheme
 //      so Obsidian opens THAT specific vault — opens a new window
 //      if Obsidian is already running for the user's main vault.
@@ -767,8 +771,11 @@ static void CompressMultipleToZip(const std::vector<std::string>& items) {
 //      next logon.
 // ─────────────────────────────────────────────────────────────────────
 
-static const char* kTempVaultPath = "C:\\Users\\azt12\\Temp Obsidian Vault";
-static const char* kMainVaultPath = "C:\\Users\\azt12\\OneDrive\\Documents\\Obsidian Vault";
+// CONFIGURE: paths to your scratch "temp" vault (created on first use)
+// and your main Obsidian vault (where edits are moved back to). The
+// temp vault is created automatically; the main vault must exist.
+static const char* kTempVaultPath = "C:\\YOUR\\TEMP\\OBSIDIAN\\VAULT";
+static const char* kMainVaultPath = "C:\\YOUR\\MAIN\\OBSIDIAN\\VAULT";
 
 static std::string LeafOf(const std::string& full) {
     size_t s = full.find_last_of("\\/");

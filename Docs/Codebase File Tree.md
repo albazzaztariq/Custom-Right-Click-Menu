@@ -85,10 +85,10 @@ hook_test/hook_test.cpp         (64) Stage 2 hook-pipeline test
 | Path | Written by |
 |---|---|
 | `build/shell_extension.log` | `src/diag.cpp::log` (mutex, append, timestamped) |
-| `C:/Users/azt12/rcm_newtab_debug.log` | `examples/menu.cpp::nt_log` |
-| `C:/Users/azt12/obs_watcher_debug.log` | `obs_watcher/obs_watcher.cpp::Log` |
-| `C:/Users/azt12/Temp Obsidian Vault/` | `examples/menu.cpp::OpenInObsidianFlow` + `build/open_md_in_obsidian.bat` |
-| `C:/Users/azt12/OneDrive/Documents/Obsidian Vault/` | `examples/menu.cpp::MoveToMainVault` |
+| `%TEMP%/rcm_newtab_debug.log` | `examples/menu.cpp::nt_log` |
+| `%TEMP%/obs_watcher_debug.log` | `obs_watcher/obs_watcher.cpp::Log` |
+| `<kTempVaultPath>` (configure in `examples/menu.cpp` + `open_md_launcher/open_md_launcher.cpp`) | `examples/menu.cpp::OpenInObsidianFlow` |
+| `<kMainVaultPath>` (configure in `examples/menu.cpp` + `open_md_launcher/open_md_to_vault.ps1`) | `examples/menu.cpp::MoveToMainVault` |
 | `HKCR\CLSID\{7C3F4C5E-9D2E-4F7A-B5C8-1A3D4E5F6A7B}` | `DllRegisterServer` |
 | `HKCR\<asset>\shellex\ContextMenuHandlers\RightClickMenuAPI` | `DllRegisterServer` (`*`, `AllFilesystemObjects`, `Directory`, `Directory\Background`, `Drive`, `Folder`) |
 | `HKCR\.md → ObsidianMD` + `HKCR\ObsidianMD\shell\open\command` | manual `reg add` pointing at `build/open_md_in_obsidian.bat` |

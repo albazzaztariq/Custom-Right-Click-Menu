@@ -29,8 +29,12 @@ static std::wstring g_vault;
 
 static void Log(const wchar_t* fmt, ...) {
     FILE* f = nullptr;
-    if (_wfopen_s(&f, L"C:\\Users\\azt12\\obs_watcher_debug.log", L"ab")
-        != 0 || !f) return;
+    wchar_t log_path[MAX_PATH];
+    const wchar_t* tmp = _wgetenv(L"TEMP");
+    if (!tmp) tmp = L".";
+    _snwprintf_s(log_path, MAX_PATH, _TRUNCATE,
+                 L"%s\\obs_watcher_debug.log", tmp);
+    if (_wfopen_s(&f, log_path, L"ab") != 0 || !f) return;
     SYSTEMTIME st; ::GetLocalTime(&st);
     fwprintf(f, L"[%02d:%02d:%02d.%03d] ", st.wHour, st.wMinute,
              st.wSecond, st.wMilliseconds);

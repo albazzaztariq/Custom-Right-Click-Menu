@@ -2,8 +2,8 @@
 #
 # Decides what to do based on where the source file already lives:
 #
-#   • If the source is ALREADY inside the main vault
-#     (C:\Users\azt12\OneDrive\Documents\Obsidian Vault\…):
+#   • If the source is ALREADY inside the main vault (see $VaultRoot
+#     below — configure to your own vault path):
 #       Just fire obsidian://open?vault=...&file=<vault-relative>
 #       so Obsidian opens it in place. NO copy. NO TEMP. NO watcher.
 #
@@ -32,10 +32,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$VaultRoot      = 'C:\Users\azt12\OneDrive\Documents\Obsidian Vault'
+# CONFIGURE: path to your main Obsidian vault and its display name.
+$VaultRoot      = 'C:\YOUR\MAIN\OBSIDIAN\VAULT'
 $VaultName      = 'Obsidian Vault'
 $VaultTempDir   = Join-Path -Path $VaultRoot -ChildPath 'TEMP'
-$LogPath        = 'C:\Users\azt12\open_md_to_vault.log'
+$LogPath        = Join-Path -Path $env:TEMP -ChildPath 'open_md_to_vault.log'
 
 function Log($msg) {
     $ts = (Get-Date -Format 'HH:mm:ss.fff')
